@@ -1,0 +1,372 @@
+// Tailwind CSS directives
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+// Custom SCSS variables
+@import './variables.scss';
+
+// 主题相关样式
+:root {
+    // 浅色主题变量
+    --theme-toggle-bg: #ffffff;
+    --theme-toggle-color: #333333;
+    --background-color: #f5f7fa;
+    --text-color: #333333;
+    --text-color-secondary: #666666;
+    --header-bg: #ffffff;
+    --card-bg: #ffffff;
+    --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    --border-color: #eaeaea;
+    --link-color: #3498db;
+    --link-hover-color: #2980b9;
+}
+
+// 深色主题变量
+[data-theme="dark"] {
+    --theme-toggle-bg: #2d2d2d;
+    --theme-toggle-color: #f0f0f0;
+    --background-color: #1a1a1a;
+    --text-color: #f0f0f0;
+    --text-color-secondary: #b0b0b0;
+    --header-bg: #2d2d2d;
+    --card-bg: #2d2d2d;
+    --card-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.3);
+    --border-color: #444444;
+    --link-color: #5dade2;
+    --link-hover-color: #85c1e9;
+}
+
+// 全局主题样式
+body {
+    background-color: var(--background-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+a {
+    color: var(--link-color);
+
+    &:hover {
+        color: var(--link-hover-color);
+    }
+}
+
+// Element Plus 深色主题支持
+html.dark {
+    /* Element Plus 深色主题变量 */
+    --el-bg-color: #1a1a1a;
+    --el-bg-color-page: #1a1a1a;
+    --el-bg-color-overlay: #2d2d2d;
+    --el-text-color-primary: #f0f0f0;
+    --el-text-color-regular: #d0d0d0;
+    --el-text-color-secondary: #a0a0a0;
+    --el-border-color: #444444;
+    --el-border-color-light: #333333;
+    --el-border-color-extra-light: #2d2d2d;
+    --el-fill-color: #2d2d2d;
+    --el-fill-color-light: #252525;
+    --el-fill-color-blank: #1a1a1a;
+    --el-fill-color-extra-light: #1a1a1a;
+    --el-mask-color: rgba(0, 0, 0, 0.8);
+    --el-mask-color-extra-light: rgba(0, 0, 0, 0.3);
+}
+
+// 动画样式
+// 页面标题动画
+.title-enter-active {
+    animation: title-enter 1.2s ease-out;
+}
+
+.title-enter-from {
+    opacity: 0;
+    transform: translateY(-30px);
+}
+
+@keyframes title-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(-30px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// 页面副标题动画
+.subtitle-enter-active {
+    animation: subtitle-enter 1.5s ease-out;
+}
+
+.subtitle-enter-from {
+    opacity: 0;
+    transform: translateY(30px);
+}
+
+@keyframes subtitle-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// 页面头部动画
+.page-header-enter-active {
+    animation: page-header-enter 1s ease-out;
+}
+
+.page-header-enter-from {
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+@keyframes page-header-enter {
+    0% {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+// 文章列表动画
+.article-list-enter-active {
+    animation: article-list-enter 0.6s ease-out;
+}
+
+.article-list-enter-from {
+    opacity: 0;
+    transform: translateY(20px);
+}
+
+.article-list-move {
+    transition: transform 0.6s ease;
+}
+
+@keyframes article-list-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+// 文章详情动画
+.article-enter-active {
+    animation: article-enter 0.8s ease-out;
+}
+
+.article-leave-active {
+    animation: article-leave 0.5s ease-in;
+}
+
+.article-enter-from {
+    opacity: 0;
+    transform: translateY(50px);
+}
+
+.article-leave-to {
+    opacity: 0;
+    transform: translateY(50px);
+}
+
+@keyframes article-enter {
+    0% {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes article-leave {
+    0% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translateY(50px);
+    }
+}
+
+// 页面切换动画 - 新页面从中心滑入，旧页面向两侧向外滑出
+.page-enter-active,
+.page-leave-active {
+    transition: opacity 0.6s, transform 0.6s;
+}
+
+.page-enter-from {
+    opacity: 0;
+    transform: scale(0.8);
+}
+
+.page-leave-to {
+    opacity: 0;
+    transform: scaleX(1.2);
+}
+
+// 页面切换遮罩
+.page-transition-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.1);
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.6s ease;
+}
+
+.page-transition-mask.active {
+    opacity: 1;
+}
+
+// 确保所有卡片元素使用CSS变量
+.el-card {
+    background-color: var(--card-bg) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) !important;
+}
+
+.el-header,
+.el-main,
+.el-footer,
+.el-aside {
+    background-color: var(--header-bg) !important;
+    color: var(--text-color) !important;
+}
+
+// 表格组件主题支持
+.el-table {
+    background-color: var(--card-bg) !important;
+    color: var(--text-color) !important;
+
+    .el-table__header th {
+        background-color: var(--header-bg) !important;
+        color: var(--text-color) !important;
+    }
+
+    .el-table__row {
+        background-color: var(--card-bg) !important;
+
+        &:hover td {
+            background-color: var(--background-color) !important;
+        }
+    }
+
+    td,
+    th {
+        border-bottom: 1px solid var(--border-color) !important;
+    }
+}
+
+// 表单组件主题支持
+.el-input__wrapper,
+.el-textarea__inner {
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+
+    &:hover {
+        border-color: var(--link-color) !important;
+    }
+}
+
+.el-input__inner,
+.el-textarea__inner {
+    color: var(--text-color) !important;
+
+    &::placeholder {
+        color: var(--text-color-secondary) !important;
+    }
+}
+
+// 按钮组件主题支持
+.el-button {
+    &[class*='primary'] {
+        --el-button-bg-color: var(--link-color);
+        --el-button-border-color: var(--link-color);
+        --el-button-hover-bg-color: var(--link-hover-color);
+        --el-button-hover-border-color: var(--link-hover-color);
+    }
+}
+
+// 下拉菜单主题支持
+.el-dropdown-menu {
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+
+    .el-dropdown-menu__item {
+        color: var(--text-color) !important;
+
+        &:hover {
+            background-color: var(--background-color) !important;
+        }
+    }
+}
+
+// 对话框主题支持
+.el-dialog {
+    background-color: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+
+    .el-dialog__header {
+        color: var(--text-color) !important;
+        border-bottom: 1px solid var(--border-color) !important;
+    }
+
+    .el-dialog__body,
+    .el-dialog__footer {
+        color: var(--text-color) !important;
+    }
+}
+
+// 分页组件主题支持
+.el-pagination {
+    .el-pager li {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
+        border: 1px solid var(--border-color) !important;
+
+        &:hover {
+            color: var(--link-color) !important;
+        }
+
+        &.is-active {
+            background-color: var(--link-color) !important;
+            color: white !important;
+            border-color: var(--link-color) !important;
+        }
+    }
+
+    .btn-prev,
+    .btn-next {
+        background-color: var(--card-bg) !important;
+        color: var(--text-color) !important;
+        border: 1px solid var(--border-color) !important;
+
+        &:hover {
+            color: var(--link-color) !important;
+        }
+    }
+}

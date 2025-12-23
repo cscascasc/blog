@@ -1,0 +1,25 @@
+{
+    "name": "blog-project",
+    "version": "1.0.0",
+    "description": "A full-stack blog project with Vue 3 frontend and Node.js backend",
+    "main": "start.js",
+    "scripts": {
+        "postinstall": "npm run setup",
+        "setup": "cd backend && npm install && cd ../front-project && npm install",
+        "dev": "node start.js",
+        "start": "node start.js",
+        "init-db": "cd backend && npm run init-db"
+    },
+    "keywords": [
+        "blog",
+        "vue",
+        "nodejs",
+        "express",
+        "mysql"
+    ],
+    "author": "Developer",
+    "license": "MIT",
+    "devDependencies": {
+        "concurrently": "^8.0.0"
+    }
+}

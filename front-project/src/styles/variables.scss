@@ -1,0 +1,27 @@
+// SCSS Variables
+$primary-color: #409eff;
+$success-color: #67c23a;
+$warning-color: #e6a23c;
+$danger-color: #f56c6c;
+$info-color: #909399;
+
+// Common styles
+.text-primary {
+    color: $primary-color;
+}
+
+.text-success {
+    color: $success-color;
+}
+
+.text-warning {
+    color: $warning-color;
+}
+
+.text-danger {
+    color: $danger-color;
+}
+
+.text-info {
+    color: $info-color;
+}
