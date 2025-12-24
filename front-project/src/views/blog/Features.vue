@@ -11,6 +11,7 @@
           class="feature-card"
           v-for="feature in features"
           :key="feature.title"
+          @click="visitFeature(feature.path)"
         >
           <div class="feature-icon">
             <el-icon v-if="feature.icon === 'el-icon-document'"
@@ -88,11 +89,13 @@ import {
   Brush,
   Picture,
 } from "@element-plus/icons-vue";
+import { useRoute, useRouter } from "vue-router";
 
 interface Feature {
   icon: string;
   title: string;
   description: string;
+  path: string;
 }
 
 interface Tech {
@@ -104,38 +107,20 @@ interface Tech {
 const features: Feature[] = [
   {
     icon: "el-icon-document",
-    title: "文章管理",
+    title: "手势控制圣诞树",
     description:
       "支持文章的创建、编辑、删除和分类管理，提供富文本编辑器和Markdown支持。",
-  },
-  {
-    icon: "el-icon-search",
-    title: "全文搜索",
-    description: "内置全文搜索引擎，支持按标题、内容和标签快速查找文章。",
-  },
-  {
-    icon: "el-icon-chat-dot-round",
-    title: "评论系统",
-    description: "集成评论功能，支持用户互动和讨论，具有评论审核机制。",
-  },
-  {
-    icon: "el-icon-mobile",
-    title: "响应式设计",
-    description:
-      "适配各种设备屏幕，提供在手机、平板和桌面设备上的良好浏览体验。",
-  },
-  {
-    icon: "el-icon-lock",
-    title: "权限管理",
-    description: "完善的用户权限系统，支持文章访问控制和用户角色管理。",
-  },
-  {
-    icon: "el-icon-data-line",
-    title: "数据统计",
-    description: "提供访问统计和用户行为分析，帮助了解博客运营状况。",
+    path: "/chrismasTree",
   },
 ];
 
+const router = useRouter();
+
+const visitFeature = (path: string) => {
+  router.push({
+    path: path,
+  });
+};
 const techStack: Tech[] = [
   {
     name: "Vue 3",

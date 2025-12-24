@@ -10,6 +10,11 @@ const routes = [
         component: Home
     },
     {
+        path: '/chrismasTree',
+        name: 'ChrismasTree',
+        component: () => import('@/components/chistmas_tree_ai/ChristmasTreeAI.vue')
+    },
+    {
         path: '/login',
         name: 'Login',
         component: () => import('@/views/admin/Login.vue')
