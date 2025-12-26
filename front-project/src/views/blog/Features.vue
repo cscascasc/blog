@@ -4,6 +4,13 @@
       <div class="page-header">
         <h1 class="page-title">博客功能</h1>
         <p class="page-subtitle">探索本博客提供的各种功能和特性</p>
+        <!-- 返回按钮 -->
+        <div class="header-actions">
+          <button class="back-button" @click="goBack">
+            <el-icon><ArrowLeft /></el-icon>
+            返回首页
+          </button>
+        </div>
       </div>
 
       <div class="features-grid">
@@ -63,6 +70,9 @@
               <el-icon v-else-if="tech.icon === 'el-icon-picture'"
                 ><Picture
               /></el-icon>
+              <el-icon v-else-if="feature.icon === 'el-icon-tools'"
+                ><Tools
+              /></el-icon>
             </div>
             <h4>{{ tech.name }}</h4>
             <p>{{ tech.description }}</p>
@@ -88,8 +98,10 @@ import {
   Cpu,
   Brush,
   Picture,
+  ArrowLeft,
+  Tools,
 } from "@element-plus/icons-vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRouter } from "vue-router";
 
 interface Feature {
   icon: string;
@@ -112,6 +124,13 @@ const features: Feature[] = [
       "支持文章的创建、编辑、删除和分类管理，提供富文本编辑器和Markdown支持。",
     path: "/chrismasTree",
   },
+  {
+    icon: "el-icon-tools",
+    title: "格式转化工具",
+    description:
+      "支持JSON、XML、CSV等多种格式之间的相互转换，以及大小写转换、Base64编码等实用功能。",
+    path: "/format-converter",
+  },
 ];
 
 const router = useRouter();
@@ -121,6 +140,11 @@ const visitFeature = (path: string) => {
     path: path,
   });
 };
+
+const goBack = () => {
+  router.push("/");
+};
+
 const techStack: Tech[] = [
   {
     name: "Vue 3",
@@ -176,6 +200,7 @@ const techStack: Tech[] = [
   text-align: center;
   margin-bottom: 50px;
   padding: 30px 0;
+  position: relative;
 }
 
 .page-title {
@@ -206,6 +231,30 @@ const techStack: Tech[] = [
   margin: 30px auto 0;
 }
 
+.header-actions {
+  margin-top: 20px;
+}
+
+.back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  text-decoration: none;
+
+  &:hover {
+    background: var(--background-color);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
 .features-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -221,6 +270,7 @@ const techStack: Tech[] = [
   box-shadow: var(--card-shadow);
   transition: all 0.4s ease;
   border: 1px solid var(--border-color);
+  cursor: pointer;
 
   &:hover {
     transform: translateY(-8px);

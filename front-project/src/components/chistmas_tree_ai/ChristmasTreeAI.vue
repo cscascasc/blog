@@ -1,5 +1,12 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿<template>
   <div class="christmas-tree-ai-container">
+    <!-- 返回按钮 -->
+    <div class="back-button-container">
+      <button class="back-button" @click="goBack">
+        <span class="back-arrow">←</span> 返回功能页面
+      </button>
+    </div>
+
     <!-- 1. SYSTEM LOADER & PERMISSION -->
     <div
       v-if="showSystemLoader"
@@ -9,6 +16,17 @@
     >
       <div class="spinner" id="sys-spinner"></div>
       <div class="loader-text" id="sys-status">{{ systemStatus }}</div>
+      <!-- 手势库加载进度条 -->
+      <div v-if="showLoadingProgress" class="progress-container">
+        <div class="progress-label">Loading Hand Gesture Library...</div>
+        <div class="progress-bar">
+          <div
+            class="progress-fill"
+            :style="{ width: loadingProgress + '%' }"
+          ></div>
+        </div>
+        <div class="progress-percent">{{ Math.round(loadingProgress) }}%</div>
+      </div>
       <button
         v-if="showInitButton"
         id="init-btn"
@@ -125,18 +143,28 @@
     <div v-show="!showSystemLoader && !showSetupScreen" id="webcam-wrapper">
       <video id="webcam" autoplay playsinline style="display: none"></video>
       <canvas id="webcam-preview"></canvas>
+      <!-- 摄像头预览显示 -->
+      <div v-if="isCameraReady" id="camera-preview-container">
+        <div class="camera-preview-label">Camera Preview</div>
+        <div class="camera-preview-box">
+          <video id="camera-display" autoplay playsinline muted></video>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from "vue";
+import { useRouter } from "vue-router";
 
 // 响应式数据
 const showSystemLoader = ref(true);
 const showSetupScreen = ref(false);
 const systemStatus = ref("Preloading 3D Assets...");
 const showInitButton = ref(true);
+const showLoadingProgress = ref(false);
+const loadingProgress = ref(0);
 const greetingMessage = ref("Merry Christmas");
 const photoSelected = ref(false);
 const musicSelected = ref(false);
@@ -210,6 +238,14 @@ let particles: any[] = [];
 let smokes: any[] = [];
 let fwCanvas: HTMLCanvasElement, fwCtx: CanvasRenderingContext2D;
 let fwWidth: number, fwHeight: number, fwScale: number;
+
+// 获取路由实例
+const router = useRouter();
+
+// 返回功能页面
+const goBack = () => {
+  router.push("/blog/features");
+};
 
 // 方法定义
 const requestPermissionAndNext = async () => {
@@ -345,6 +381,24 @@ const finishSetupAndReveal = () => {
       }
     }
   }, 800);
+};
+
+// 重新初始化MediaPipe库
+const reinitializeMediaPipe = async () => {
+  // 如果已有实例，先清理
+  if (handLandmarker) {
+    try {
+      handLandmarker.close();
+    } catch (e) {
+      console.warn("Error closing handLandmarker:", e);
+    }
+    handLandmarker = null;
+  }
+
+  // 重新加载MediaPipe模块
+  const visionModule = await import("@mediapipe/tasks-vision");
+  (window as any).FilesetResolver = visionModule.FilesetResolver;
+  (window as any).HandLandmarker = visionModule.HandLandmarker;
 };
 
 // fireworks 相关类和函数
@@ -1193,23 +1247,94 @@ const animate = () => {
     return;
   }
 
-  webcamCanvas.width = 160;
-  webcamCanvas.height = 120;
+  webcamCanvas.width = 400;
+  webcamCanvas.height = 300;
 
-  const vision = await (window as any).FilesetResolver.forVisionTasks(
-    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm"
-  );
-  handLandmarker = await (window as any).HandLandmarker.createFromOptions(
-    vision,
-    {
-      baseOptions: {
-        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-        delegate: "GPU",
-      },
-      runningMode: "VIDEO",
-      numHands: 1,
-    }
-  );
+  // 显示加载进度条
+  showLoadingProgress.value = true;
+  loadingProgress.value = 0;
+
+  // 创建一个进度回调函数来更新进度条
+  const updateProgress = (progress: number) => {
+    loadingProgress.value = progress;
+  };
+
+  try {
+    // 模拟加载进度 - 首先加载Vision库
+    updateProgress(20);
+
+    // 由于FilesetResolver.forVisionTasks不支持进度回调，我们使用模拟进度
+    const vision = await (window as any).FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm"
+    );
+
+    // 模拟加载进度完成
+    updateProgress(60);
+
+    updateProgress(60);
+
+    // 加载HandLandmarker模型
+    systemStatus.value = "Loading Hand Landmarker Model...";
+
+    // 创建一个模拟进度的函数，因为MediaPipe没有直接的进度回调
+    const simulateProgress = (start: number, end: number, duration: number) => {
+      return new Promise<void>((resolve) => {
+        const startTime = Date.now();
+        const interval = setInterval(() => {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(
+            (elapsed / duration) * (end - start) + start,
+            end
+          );
+          updateProgress(progress);
+
+          if (elapsed >= duration) {
+            clearInterval(interval);
+            updateProgress(end);
+            resolve();
+          }
+        }, 50);
+      });
+    };
+
+    await simulateProgress(60, 90, 1000); // 模拟加载模型过程
+
+    handLandmarker = await (window as any).HandLandmarker.createFromOptions(
+      vision,
+      {
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numHands: 1,
+        minHandDetectionConfidence: 0.7, // 提高检测置信度
+        minHandPresenceConfidence: 0.7,
+        minTrackingConfidence: 0.7,
+      }
+    );
+
+    await simulateProgress(90, 100, 500); // 模拟完成过程
+
+    systemStatus.value = "Gesture Library Loaded Successfully!";
+
+    // 短暂延迟后隐藏进度条
+    setTimeout(() => {
+      showLoadingProgress.value = false;
+    }, 1000);
+  } catch (error) {
+    console.error("Error loading MediaPipe models:", error);
+    systemStatus.value = "Error loading gesture library. Please try again.";
+    showLoadingProgress.value = false;
+  }
+
+  // 设置摄像头预览显示
+  const cameraDisplay = document.getElementById(
+    "camera-display"
+  ) as HTMLVideoElement;
+  if (cameraDisplay) {
+    cameraDisplay.srcObject = existingStream;
+  }
 
   video.srcObject = existingStream;
   video.addEventListener("loadeddata", predictWebcam);
@@ -1248,16 +1373,15 @@ const predictWebcam = () => {
         pinchDistance.value = pinchDist;
 
         // 添加手势稳定性优化 - 历史记录和多数表决
-        // 使用缓冲区减少临界值抖动
-        const pinchThreshold = 0.05;
-        const fistThreshold = 0.25;
-        const openThreshold = 0.4;
-        const buffer = 0.02; // 添加缓冲区减少抖动
+        // 调整阈值以提高识别准确性
+        const pinchThreshold = 0.08; // 增加阈值，使捏合手势更容易触发
+        const fistThreshold = 0.22; // 调整握拳阈值
+        const openThreshold = 0.45; // 调整张开阈值
 
         const currentGesture = {
-          pinch: pinchDist < pinchThreshold, // 使用标准阈值0.05，移除缓冲区
-          fist: avgDist < fistThreshold - buffer,
-          open: avgDist > openThreshold + buffer,
+          pinch: pinchDist < pinchThreshold,
+          fist: avgDist < fistThreshold,
+          open: avgDist > openThreshold,
         };
 
         // 更新历史记录
@@ -1265,7 +1389,7 @@ const predictWebcam = () => {
         gestureHistory.fist.push(currentGesture.fist);
         gestureHistory.open.push(currentGesture.open);
 
-        // 保持历史记录在最大长度
+        // 保持历史记录在最大长度，但增加清理逻辑
         if (gestureHistory.pinch.length > gestureHistory.maxHistory) {
           gestureHistory.pinch.shift();
         }
@@ -1276,9 +1400,13 @@ const predictWebcam = () => {
           gestureHistory.open.shift();
         }
 
-        // 多数表决 - 需要更高比例的帧一致才能执行动作（减少误判）
+        // 添加调试信息，如果需要可以启用
+        // console.log('Gesture state - Pinch:', currentGesture.pinch, 'Fist:', currentGesture.fist, 'Open:', currentGesture.open);
+        // console.log('AvgDist:', avgDist.toFixed(3), 'PinchDist:', pinchDist.toFixed(3));
+
+        // 多数表决 - 调整为更灵活的检测机制
         const countTrue = (arr) => arr.filter(Boolean).length;
-        const requiredFrames = Math.ceil(gestureHistory.maxHistory * 0.75); // 需要75%的帧一致
+        const requiredFrames = Math.ceil(gestureHistory.maxHistory * 0.4); // 降低帧一致要求到40%以提高响应性
         const isPinchStable = countTrue(gestureHistory.pinch) >= requiredFrames;
         const isFistStable = countTrue(gestureHistory.fist) >= requiredFrames;
         const isOpenStable = countTrue(gestureHistory.open) >= requiredFrames;
@@ -1289,27 +1417,16 @@ const predictWebcam = () => {
           return STATE.value.mode !== newMode;
         };
 
-        // 为FOCUS模式的退出也添加稳定性检测
+        // 改进FOCUS模式的退出检测
         if (STATE.value.mode === "FOCUS") {
-          // Sticky exit - 使用稳定检测
-          if (pinchDist > 0.08) {
-            // 检查是否持续满足退出条件
-            if (!STATE.value.exitFocusAttempt) {
-              STATE.value.exitFocusAttempt = 0;
-            }
-            STATE.value.exitFocusAttempt++;
-
-            if (STATE.value.exitFocusAttempt >= 3) {
-              // 连续3次检测到退出条件才执行
-              changeState("SCATTER");
-              STATE.value.exitFocusAttempt = 0; // 重置计数器
-            }
-          } else {
-            STATE.value.exitFocusAttempt = 0; // 重置计数器
+          // 放宽退出FOCUS模式的条件
+          if (pinchDist > 0.12) {
+            // 增加退出阈值，使退出更容易
+            changeState("SCATTER");
           }
         } else {
+          // 改进手势状态切换逻辑
           if (isPinchStable && shouldChangeMode("FOCUS")) {
-            // FIXED: Strict Sequential Logic
             const photos = particleSystem.filter((p) => p.type === "PHOTO");
             if (photos.length > 0) {
               STATE.value.mode = "FOCUS";
@@ -1424,11 +1541,10 @@ onMounted(async () => {
     (window as any).RoomEnvironment = RoomEnvironment;
   }
 
-  if (!(window as any).FilesetResolver) {
-    const visionModule = await import("@mediapipe/tasks-vision");
-    (window as any).FilesetResolver = visionModule.FilesetResolver;
-    (window as any).HandLandmarker = visionModule.HandLandmarker;
-  }
+  // 确保每次进入组件时都重新初始化MediaPipe
+  const visionModule = await import("@mediapipe/tasks-vision");
+  (window as any).FilesetResolver = visionModule.FilesetResolver;
+  (window as any).HandLandmarker = visionModule.HandLandmarker;
 
   // 启动3D引擎
   if ((window as any).startThreeEngine) {
@@ -1459,6 +1575,10 @@ onUnmounted(() => {
     handLandmarker.close();
     handLandmarker = null;
   }
+
+  // 重置进度条状态
+  showLoadingProgress.value = false;
+  loadingProgress.value = 0;
 });
 </script>
 
@@ -1488,6 +1608,39 @@ body {
   left: 0;
   z-index: 2;
   pointer-events: none;
+}
+
+/* 返回按钮样式 */
+.back-button-container {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 100;
+  pointer-events: auto;
+}
+
+.back-button {
+  background: rgba(212, 175, 55, 0.2);
+  color: #d4af37;
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  padding: 10px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.back-button:hover {
+  background: rgba(212, 175, 55, 0.4);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+.back-arrow {
+  font-size: 16px;
 }
 
 /* 2. UI Layer (Title) */
@@ -1663,6 +1816,79 @@ h1 {
   transition: opacity 0.5s;
   border-radius: 4px;
   overflow: hidden;
+}
+
+/* 摄像头预览样式 */
+#camera-preview-container {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(212, 175, 55, 0.5);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.3);
+}
+
+.camera-preview-label {
+  color: #d4af37;
+  font-size: 12px;
+  text-align: center;
+  margin-bottom: 8px;
+  font-family: monospace;
+}
+
+.camera-preview-box {
+  width: 480px;
+  height: 360px;
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+#camera-display {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 进度条样式 */
+.progress-container {
+  width: 80%;
+  max-width: 400px;
+  margin: 20px auto;
+  text-align: center;
+}
+
+.progress-label {
+  color: #d4af37;
+  margin-bottom: 10px;
+  font-size: 14px;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 5px;
+  border: 1px solid rgba(212, 175, 55, 0.3);
+}
+
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #d4af37, #ffcc00);
+  transition: width 0.3s ease;
+  border-radius: 10px;
+}
+
+.progress-percent {
+  color: #d4af37;
+  font-size: 14px;
+  font-weight: bold;
 }
 
 /* 增强整体视觉效果 */

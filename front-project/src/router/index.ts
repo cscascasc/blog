@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home.vue'
 import NotFound from '@/views/NotFound.vue'
 import { setupRouterGuards } from './guards'
+import FormatConverter from '@/components/FormatConverter.vue'
 
 const routes = [
     {
@@ -13,6 +14,11 @@ const routes = [
         path: '/chrismasTree',
         name: 'ChrismasTree',
         component: () => import('@/components/chistmas_tree_ai/ChristmasTreeAI.vue')
+    },
+    {
+        path: '/format-converter',
+        name: 'FormatConverter',
+        component: FormatConverter
     },
     {
         path: '/login',
