@@ -19,47 +19,20 @@
           <option value="">请选择论文格式</option>
           <option value="cnki">知网标准论文格式</option>
           <option value="custom">自定义论文格式</option>
-          <option value="template">上传模板</option>
+          <option
+            v-for="template in userTemplates"
+            :key="template.id"
+            :value="'user-template-' + template.id"
+          >
+            {{ template.name }}
+          </option>
         </select>
-        <div
-          v-if="selectedFormat === 'template'"
-          class="template-upload-section"
-        >
-          <label>上传论文格式模板:</label>
-          <input
-            type="file"
-            accept=".json,.txt,.doc,.docx,.xml"
-            @change="handleTemplateUpload"
-            class="template-upload-input"
-          />
-          <div v-if="isTemplateLoaded" class="template-info">
-            <p>已加载模板: {{ templateName }}</p>
-            <button @click="clearTemplate" class="clear-template-btn">
-              清除模板
-            </button>
-          </div>
-          <div v-else class="template-download">
-            <p>需要模板文件？</p>
-            <div class="download-options">
-              <a
-                @click.prevent="downloadTemplate('json')"
-                href="#"
-                class="download-link"
-                >下载JSON模板</a
-              >
-              <span class="download-separator"> | </span>
-              <a
-                @click.prevent="downloadTemplate('doc')"
-                href="#"
-                class="download-link"
-                >下载Word模板</a
-              >
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div v-if="selectedFormat === 'custom'" class="format-config">
+      <div
+        v-if="selectedFormat !== 'cnki' && selectedFormat"
+        class="format-config"
+      >
         <h3>自定义格式设置</h3>
 
         <div class="custom-text-types">
@@ -201,6 +174,14 @@
             <button @click="addTextType" class="add-type-btn">
               添加文本类型
             </button>
+            <button
+              v-if="selectedFormat === 'custom'"
+              @click="saveCustomFormat"
+              class="save-custom-format-btn"
+              style="margin-left: 10px"
+            >
+              保存当前格式
+            </button>
           </div>
         </div>
       </div>
@@ -271,7 +252,8 @@
             v-model="selectedTextType"
             class="text-type-select"
             v-if="
-              selectedFormat === 'template' &&
+              (selectedFormat === 'template' ||
+                selectedFormat.startsWith('user-template-')) &&
               templateFormat &&
               templateFormat.types
             "
@@ -379,13 +361,29 @@
         </div>
 
         <div class="input-actions">
-          <button @click="addText" class="add-btn">
-            {{ editingIndex !== null ? "更新内容" : "添加到文档" }}
-          </button>
-          <button @click="clearAll" class="clear-btn">清空全部</button>
-          <button @click="copyToClipboard" class="copy-btn">复制HTML</button>
-          <button @click="exportToDocx" class="export-btn">导出Word文档</button>
-          <button @click="resetFormat" class="reset-btn">重选格式</button>
+          <div class="action-row">
+            <button @click="addText" class="add-btn">
+              {{ editingIndex !== null ? "更新内容" : "添加到文档" }}
+            </button>
+            <button @click="clearAll" class="clear-btn">清空全部</button>
+          </div>
+          <div class="action-row">
+            <button @click="copyToClipboard" class="copy-btn">复制HTML</button>
+            <button @click="exportToDocx" class="export-btn">
+              导出Word文档
+            </button>
+          </div>
+          <div class="action-row">
+            <button @click="saveCurrentContent" class="save-content-btn">
+              保存内容
+            </button>
+            <button @click="loadUserContent" class="load-content-btn">
+              加载内容
+            </button>
+          </div>
+          <div class="action-row">
+            <button @click="resetFormat" class="reset-btn">重选格式</button>
+          </div>
         </div>
       </div>
     </div>
@@ -396,6 +394,15 @@
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import DOMPurify from "dompurify";
+import { ElMessage, ElMessageBox } from "element-plus";
+import {
+  saveTemplate,
+  getUserTemplates,
+  getTemplateById,
+  saveContent,
+  getUserContents,
+  getContentById,
+} from "@/api/template";
 
 // 响应式数据
 const textInput = ref("");
@@ -408,6 +415,7 @@ const documentParts = ref<
 const editingIndex = ref<number | null>(null); // 当前编辑的项目索引
 const showCnkiCustomize = ref(false); // 是否显示知网格式自定义选项
 const showActions = ref<number | null>(null); // 当前显示操作按钮的项目索引
+const userTemplates = ref<any[]>([]); // 用户保存的模板列表
 
 // 知网格式自定义设置
 const cnkiCustomSettings = ref({
@@ -418,10 +426,10 @@ const cnkiCustomSettings = ref({
   alignment: "left",
 });
 
-// 模板上传相关
-const templateFormat = ref<any>(null); // 存储上传的模板格式
-const templateName = ref(""); // 上传的模板名称
-const isTemplateLoaded = ref(false); // 是否已加载模板
+// 模板相关（用于用户保存的模板功能）
+const templateFormat = ref<any>(null); // 存储用户保存的模板格式
+const templateName = ref(""); // 用户保存的模板名称
+const isTemplateLoaded = ref(false); // 是否已加载用户模板
 
 // 自定义文本类型
 interface CustomTextType {
@@ -486,9 +494,9 @@ const canConfirmFormat = computed(() => {
     return customTextTypes.value.some((type) => type.name.trim() !== "");
   }
 
-  if (selectedFormat.value === "template") {
-    // 模板格式需要已上传模板
-    return isTemplateLoaded.value;
+  if (selectedFormat.value.startsWith("user-template-")) {
+    // 用户保存的模板格式，总是可以确认
+    return true;
   }
 
   // 知网格式可以直接确认
@@ -496,15 +504,129 @@ const canConfirmFormat = computed(() => {
 });
 
 // 当格式改变时的处理函数
-const onFormatChange = () => {
+const onFormatChange = async () => {
   // 格式改变时可以添加一些处理逻辑
   console.log("格式已选择:", selectedFormat.value);
 
-  // 如果切换到模板格式，确保已加载模板
-  if (selectedFormat.value === "template" && !isTemplateLoaded.value) {
-    alert("请先上传模板文件");
+  // 检查是否选择了用户保存的模板
+  if (selectedFormat.value.startsWith("user-template-")) {
+    const templateId = selectedFormat.value.replace("user-template-", "");
+
+    try {
+      // 从API获取模板详细信息，因为userTemplates列表中不包含content字段
+      const templateDetail = await getTemplateById(parseInt(templateId));
+      const template = templateDetail.template;
+
+      if (template && template.content && template.content.types) {
+        // 清空当前自定义文本类型
+        customTextTypes.value = [];
+
+        // 遍历模板中的类型并添加到自定义文本类型
+        Object.keys(template.content.types).forEach((key) => {
+          const typeData = template.content.types[key];
+          customTextTypes.value.push({
+            name: key,
+            placeholder: `如：${key}`,
+            fontSize: typeData.fontSize || 12,
+            fontFamily: typeData.fontFamily || "SimSun",
+            bold: typeData.bold || false,
+            italic: typeData.italic || false,
+            alignment: typeData.alignment || "left",
+            lineHeight: typeData.lineHeight || 1.5,
+            marginTop: typeData.marginTop || 0,
+            marginBottom: typeData.marginBottom || 0,
+            textIndent: typeData.textIndent || 0,
+          });
+        });
+
+        // 同时设置templateFormat，确保在confirmFormat时能正确使用
+        templateFormat.value = template.content;
+        templateName.value = template.name;
+        isTemplateLoaded.value = true;
+
+        ElMessage.success("自定义格式已应用！");
+
+        // 不自动进入编辑状态，让用户可以看到格式配置并进行调整
+        // formatConfirmed.value = true;
+        // selectedTextType.value = customTextTypes.value[0]?.name || "content";
+      }
+    } catch (error) {
+      console.error("加载模板详情失败:", error);
+      ElMessage.error("加载模板详情失败");
+    }
+  } else {
+    // 如果切换到其他格式（非用户模板），确保清除模板相关状态
+    // 清除模板状态，但保留用户模板列表
+    templateFormat.value = null;
+    templateName.value = "";
+    isTemplateLoaded.value = false;
   }
 };
+
+// 加载用户保存的特定模板
+const loadUserTemplateById = async (templateId: number) => {
+  try {
+    const response = await getTemplateById(templateId);
+    // 根据API响应结构调整数据访问方式
+    const templateData = response.template || response.data?.template;
+
+    if (templateData) {
+      templateFormat.value = templateData.content;
+      templateName.value = templateData.name;
+      isTemplateLoaded.value = true;
+
+      // 根据模板数据更新自定义文本类型
+      if (templateData.content && templateData.content.types) {
+        // 清空当前自定义文本类型
+        customTextTypes.value = [];
+
+        // 遍历模板中的类型并添加到自定义文本类型
+        Object.keys(templateData.content.types).forEach((key) => {
+          const typeData = templateData.content.types[key];
+          customTextTypes.value.push({
+            name: key,
+            placeholder: `如：${key}`,
+            fontSize: typeData.fontSize || 12,
+            fontFamily: typeData.fontFamily || "SimSun",
+            bold: typeData.bold || false,
+            italic: typeData.italic || false,
+            alignment: typeData.alignment || "left",
+            lineHeight: typeData.lineHeight || 1.5,
+            marginTop: typeData.marginTop || 0,
+            marginBottom: typeData.marginBottom || 0,
+            textIndent: typeData.textIndent || 0,
+          });
+        });
+      }
+
+      ElMessage.success("自定义格式加载成功！");
+    } else {
+      ElMessage.error("未找到自定义格式数据");
+    }
+  } catch (error: any) {
+    console.error("加载自定义格式失败:", error);
+    // 检查错误类型并给出更具体的错误信息
+    if (error.response && error.response.status === 404) {
+      ElMessage.error("未找到指定的自定义格式");
+    } else {
+      ElMessage.error("加载自定义格式失败，请重试");
+    }
+  }
+};
+
+// 在组件挂载时加载用户模板
+const loadUserTemplates = async () => {
+  try {
+    const response = await getUserTemplates("format");
+    userTemplates.value = response?.templates || [];
+    console.log("用户模板加载成功:", response, userTemplates.value);
+  } catch (error) {
+    console.error("加载用户模板失败:", error);
+  }
+};
+
+// 在组件挂载时加载用户模板
+loadUserTemplates();
 
 // 添加新的文本类型
 const addTextType = () => {
@@ -527,7 +649,7 @@ const removeTextType = (index: number) => {
   if (customTextTypes.value.length > 1) {
     customTextTypes.value.splice(index, 1);
   } else {
-    alert("至少需要保留一个文本类型");
+    ElMessage.warning("至少需要保留一个文本类型");
   }
 };
 
@@ -543,8 +665,8 @@ const confirmFormat = () => {
   // 设置默认的文本类型选择
   if (selectedFormat.value === "cnki") {
     selectedTextType.value = "title";
-  } else if (selectedFormat.value === "template") {
-    // 模板格式，使用模板中定义的第一个文本类型
+  } else if (selectedFormat.value.startsWith("user-template-")) {
+    // 用户保存的模板格式，使用模板中定义的第一个文本类型
     if (templateFormat.value && templateFormat.value.types) {
       const firstTypeKey = Object.keys(templateFormat.value.types)[0];
       if (firstTypeKey) {
@@ -554,7 +676,12 @@ const confirmFormat = () => {
         selectedTextType.value = "content";
       }
     } else {
-      selectedTextType.value = "content";
+      // 如果templateFormat没有设置，尝试使用customTextTypes中的第一个类型
+      if (customTextTypes.value && customTextTypes.value.length > 0) {
+        selectedTextType.value = customTextTypes.value[0].name;
+      } else {
+        selectedTextType.value = "content";
+      }
     }
   } else {
     // 自定义格式，选择第一个有效的文本类型
@@ -569,296 +696,145 @@ const confirmFormat = () => {
 
 // 重选格式
 const resetFormat = () => {
-  if (confirm("确定要重新选择格式吗？当前编辑的内容将被保留。")) {
-    formatConfirmed.value = false;
-  }
+  ElMessageBox.confirm(
+    "确定要重新选择格式吗？当前编辑的内容将被保留。",
+    "提示",
+    {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning",
+    }
+  )
+    .then(() => {
+      formatConfirmed.value = false;
+      // 重置格式选择，但保留用户模板列表
+      selectedFormat.value = "";
+    })
+    .catch(() => {
+      // 用户取消了操作
+    });
 };
 
-// 处理模板上传
-const handleTemplateUpload = (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const file = target.files?.[0];
+// 保存自定义格式
+const saveCustomFormat = async () => {
+  // 验证至少有一个文本类型名称不为空
+  if (!customTextTypes.value.some((type) => type.name.trim() !== "")) {
+    ElMessage.error("请至少定义一个文本类型名称");
+    return;
+  }
 
-  if (!file) return;
-
-  templateName.value = file.name;
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const content = e.target?.result as string;
-      // 尝试解析JSON格式的模板
-      if (file.name.endsWith(".json")) {
-        templateFormat.value = JSON.parse(content);
-      } else {
-        // 对于非JSON文件，提供基本的文本内容
-        templateFormat.value = {
-          name: file.name,
-          content: content,
-          type: file.type,
-        };
+  // 检查用户是否已登录
+  const token = localStorage.getItem("token");
+  if (!token) {
+    const confirmResult = await ElMessageBox.confirm(
+      "您尚未登录，需要先登录才能保存格式。是否立即跳转到登录页面？",
+      "登录提示",
+      {
+        confirmButtonText: "去登录",
+        cancelButtonText: "取消",
+        type: "warning",
       }
-      isTemplateLoaded.value = true;
-      alert("模板上传成功！");
-    } catch (error) {
-      console.error("解析模板失败:", error);
-      alert("模板格式不正确，请检查文件内容");
-    }
-  };
-
-  if (file.name.endsWith(".json")) {
-    reader.readAsText(file);
-  } else {
-    reader.readAsText(file);
-  }
-};
-
-// 清除模板
-const clearTemplate = () => {
-  if (confirm("确定要清除当前模板吗？")) {
-    templateFormat.value = null;
-    templateName.value = "";
-    isTemplateLoaded.value = false;
-    selectedFormat.value = "";
-  }
-};
-
-// 下载模板文件
-const downloadTemplate = (format: string = "json") => {
-  if (format === "json") {
-    // JSON模板内容
-    const templateContent = {
-      name: "自定义论文格式模板",
-      description:
-        "这是一个论文格式模板，您可以根据需要修改其中的文本类型和样式定义",
-      types: {
-        title: {
-          displayName: "论文标题",
-          tag: "h1",
-          fontSize: 24,
-          fontFamily: "KaiTi, SimSun, serif",
-          bold: true,
-          italic: false,
-          alignment: "center",
-          lineHeight: 1.5,
-          marginTop: 20,
-          marginBottom: 20,
-          textIndent: 0,
-        },
-        author: {
-          displayName: "作者",
-          tag: "p",
-          fontSize: 14,
-          fontFamily: "SimSun, serif",
-          bold: true,
-          italic: false,
-          alignment: "center",
-          lineHeight: 1.4,
-          marginTop: 10,
-          marginBottom: 10,
-          textIndent: 0,
-        },
-        affiliation: {
-          displayName: "单位",
-          tag: "p",
-          fontSize: 12,
-          fontFamily: "SimSun, serif",
-          bold: false,
-          italic: false,
-          alignment: "center",
-          lineHeight: 1.4,
-          marginTop: 8,
-          marginBottom: 8,
-          textIndent: 0,
-        },
-        abstract: {
-          displayName: "摘要",
-          tag: "div",
-          fontSize: 12,
-          fontFamily: "SimSun, serif",
-          bold: false,
-          italic: false,
-          alignment: "justify",
-          lineHeight: 1.6,
-          marginTop: 15,
-          marginBottom: 10,
-          textIndent: 0,
-        },
-        keywords: {
-          displayName: "关键词",
-          tag: "div",
-          fontSize: 12,
-          fontFamily: "SimSun, serif",
-          bold: false,
-          italic: false,
-          alignment: "justify",
-          lineHeight: 1.6,
-          marginTop: 10,
-          marginBottom: 10,
-          textIndent: 0,
-        },
-        "section-title": {
-          displayName: "一级标题",
-          tag: "h2",
-          fontSize: 16,
-          fontFamily: "KaiTi, SimSun, serif",
-          bold: true,
-          italic: false,
-          alignment: "left",
-          lineHeight: 1.4,
-          marginTop: 18,
-          marginBottom: 10,
-          textIndent: 0,
-        },
-        "subsection-title": {
-          displayName: "二级标题",
-          tag: "h3",
-          fontSize: 14,
-          fontFamily: "KaiTi, SimSun, serif",
-          bold: true,
-          italic: false,
-          alignment: "left",
-          lineHeight: 1.4,
-          marginTop: 16,
-          marginBottom: 8,
-          textIndent: 0,
-        },
-        content: {
-          displayName: "正文",
-          tag: "p",
-          fontSize: 12,
-          fontFamily: "SimSun, serif",
-          bold: false,
-          italic: false,
-          alignment: "justify",
-          lineHeight: 1.8,
-          marginTop: 0,
-          marginBottom: 15,
-          textIndent: 2,
-        },
-        quote: {
-          displayName: "引用",
-          tag: "blockquote",
-          fontSize: 12,
-          fontFamily: "SimSun, serif",
-          bold: false,
-          italic: false,
-          alignment: "justify",
-          lineHeight: 1.6,
-          marginTop: 15,
-          marginBottom: 15,
-          textIndent: 0,
-        },
-        reference: {
-          displayName: "参考文献",
-          tag: "p",
-          fontSize: 10.5,
-          fontFamily: "SimSun, serif",
-          bold: false,
-          italic: false,
-          alignment: "left",
-          lineHeight: 1.5,
-          marginTop: 8,
-          marginBottom: 8,
-          textIndent: -2,
-        },
-      },
-    };
-
-    // 将模板内容转换为JSON字符串
-    const jsonString = JSON.stringify(templateContent, null, 2);
-
-    // 创建Blob对象
-    const blob = new Blob([jsonString], { type: "application/json" });
-
-    // 创建下载链接
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "format_template.json";
-
-    // 触发下载
-    document.body.appendChild(link);
-    link.click();
-
-    // 清理
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    alert("JSON模板文件下载成功！请根据需要编辑模板后上传使用。");
-  } else if (format === "doc") {
-    // 创建Word文档模板内容
-    const wordDocContent = `论文格式模板说明
-
-1. 模板结构说明：
-   - 标题：用于论文标题
-   - 作者：用于作者姓名
-   - 单位：用于作者单位信息
-   - 摘要：用于论文摘要
-   - 关键词：用于关键词部分
-   - 一级标题：用于章节标题
-   - 二级标题：用于子章节标题
-   - 正文：用于论文正文内容
-   - 引用：用于引用内容
-   - 参考文献：用于参考文献部分
-
-2. 使用说明：
-   - 请按照模板格式填写相应内容
-   - 可以根据需要修改格式参数
-   - 保存为JSON格式后上传使用
-
-3. 格式参数说明：
-   - fontSize: 字体大小
-   - fontFamily: 字体类型
-   - bold: 是否加粗
-   - italic: 是否斜体
-   - alignment: 对齐方式
-   - lineHeight: 行高
-   - marginTop: 上边距
-   - marginBottom: 下边距
-   - textIndent: 首行缩进
-
-4. JSON模板格式示例：
-{
-  "name": "自定义论文格式模板",
-  "description": "这是一个论文格式模板...",
-  "types": {
-    "title": {
-      "displayName": "论文标题",
-      "tag": "h1",
-      "fontSize": 24,
-      "fontFamily": "KaiTi, SimSun, serif",
-      "bold": true,
-      "italic": false,
-      "alignment": "center",
-      "lineHeight": 1.5,
-      "marginTop": 20,
-      "marginBottom": 20,
-      "textIndent": 0
-    }
-  }
-}`;
-
-    // 使用纯文本格式，Word可以正确打开
-    const blob = new Blob([wordDocContent], {
-      type: "application/msword; charset=utf-8",
+    ).catch(() => {
+      // 用户取消操作
+      return false;
     });
 
-    // 创建下载链接
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "format_template.doc";
+    if (confirmResult === "confirm") {
+      // 跳转到登录页面
+      router.push("/login");
+    }
+    return;
+  }
 
-    // 触发下载
-    document.body.appendChild(link);
-    link.click();
+  // 使用Element UI的prompt
+  try {
+    const { value: formatName } = await ElMessageBox.prompt(
+      "请输入格式名称：",
+      "保存自定义格式",
+      {
+        confirmButtonText: "确定",
+        cancelButtonText: "取消",
+        inputPattern: /\S+/, // 非空验证
+        inputErrorMessage: "格式名称不能为空",
+      }
+    );
 
-    // 清理
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // 创建格式数据
+    const formatData = {
+      types: {},
+    };
 
-    alert("Word模板文件下载成功！请根据需要编辑模板后上传使用。");
+    // 遍历自定义文本类型，构建格式数据
+    customTextTypes.value.forEach((type) => {
+      if (type.name.trim() !== "") {
+        formatData.types[type.name] = {
+          displayName: type.name,
+          tag: "p", // 默认标签
+          fontSize: type.fontSize,
+          fontFamily: type.fontFamily,
+          bold: type.bold,
+          italic: type.italic,
+          alignment: type.alignment,
+          lineHeight: type.lineHeight,
+          marginTop: type.marginTop || 0,
+          marginBottom: type.marginBottom || 0,
+          textIndent: type.textIndent || 0,
+        };
+      }
+    });
+
+    // 检查是否已存在同名格式
+    const existingTemplate = userTemplates.value.find(
+      (template) => template.name === formatName
+    );
+    if (existingTemplate) {
+      const confirmResult = await ElMessageBox.confirm(
+        `已存在名为 "${formatName}" 的格式，是否覆盖？`,
+        "格式重名确认",
+        {
+          confirmButtonText: "覆盖",
+          cancelButtonText: "取消",
+          type: "warning",
+        }
+      ).catch(() => {
+        // 用户取消操作
+        return false;
+      });
+
+      if (!confirmResult) {
+        return; // 用户取消覆盖，直接返回
+      }
+    }
+
+    // 调用API保存格式
+    const response = await saveTemplate({
+      name: formatName,
+      description: `自定义格式: ${formatName}`,
+      content: formatData,
+      type: "format",
+    });
+
+    // 根据响应状态显示不同消息
+    if (response.message === "模板已更新") {
+      ElMessage.success("格式已更新！");
+    } else {
+      ElMessage.success("格式保存成功！");
+    }
+
+    // 重新加载用户模板列表
+    await loadUserTemplates();
+  } catch (error) {
+    if (error !== "cancel") {
+      if (error.response && error.response.status === 403) {
+        // 令牌无效或权限不足
+        ElMessage.error("访问令牌无效或权限不足，请重新登录");
+        localStorage.removeItem("token");
+        router.push("/login");
+      } else {
+        console.error("保存格式失败:", error);
+        ElMessage.error("保存格式失败，请重试");
+      }
+    }
   }
 };
 
@@ -972,8 +948,8 @@ const generateHTML = (type: string, content: string): string => {
       default:
         return `<span style="${style}">${content}</span>`;
     }
-  } else if (selectedFormat.value === "template") {
-    // 模板格式
+  } else if (selectedFormat.value.startsWith("user-template-")) {
+    // 用户保存的模板格式
     if (
       templateFormat.value &&
       templateFormat.value.types &&
@@ -1133,6 +1109,180 @@ const deletePart = (index: number) => {
       editingIndex.value = null;
       textInput.value = "";
     }
+  }
+};
+
+// 保存当前模板到后端
+const saveCurrentTemplate = async () => {
+  if (!templateFormat.value) {
+    alert("当前没有模板可以保存");
+    return;
+  }
+
+  try {
+    // 获取模板名称，如果没有则使用默认名称
+    const templateName = prompt("请输入模板名称:", "我的论文格式模板");
+    if (!templateName) return;
+
+    const templateDescription = prompt("请输入模板描述:", "自定义论文格式模板");
+
+    const response = await saveTemplate({
+      name: templateName,
+      description: templateDescription || "自定义论文格式模板",
+      content: templateFormat.value,
+      type: "format",
+    });
+
+    if (response.data) {
+      alert("模板保存成功！");
+      // 重新加载用户模板列表
+      loadUserTemplates();
+    }
+  } catch (error) {
+    console.error("保存模板失败:", error);
+    alert("模板保存失败，请重试");
+  }
+};
+
+// 保存当前内容到后端
+const saveCurrentContent = async () => {
+  if (documentParts.value.length === 0) {
+    alert("没有内容可以保存");
+    return;
+  }
+
+  try {
+    // 获取内容标题，如果没有则使用默认标题
+    const contentTitle = prompt("请输入内容标题:", "我的论文内容");
+    if (!contentTitle) return;
+
+    const contentDescription = prompt("请输入内容描述:", "论文内容片段");
+
+    const response = await saveContent({
+      title: contentTitle,
+      description: contentDescription || "论文内容片段",
+      content: {
+        parts: documentParts.value,
+        format: selectedFormat.value,
+        customTypes: customTextTypes.value,
+      },
+    });
+
+    if (response.data) {
+      alert("内容保存成功！");
+    }
+  } catch (error) {
+    console.error("保存内容失败:", error);
+    alert("内容保存失败，请重试");
+  }
+};
+
+// 加载用户保存的模板
+const loadUserTemplate = async () => {
+  try {
+    const templatesResponse = await getUserTemplates("format");
+    const templates = templatesResponse.data?.templates || [];
+
+    if (templates.length === 0) {
+      alert("您还没有保存任何模板");
+      return;
+    }
+
+    // 创建模板选择对话框
+    let templateList = "请选择要加载的模板:\n\n";
+    templates.forEach((template: any, index: number) => {
+      templateList += `${index + 1}. ${template.name} - ${
+        template.description || "无描述"
+      } (${new Date(template.created_at).toLocaleDateString()})\n`;
+    });
+
+    const selection = prompt(templateList + "\n请输入模板编号:");
+    if (!selection) return;
+
+    const templateIndex = parseInt(selection) - 1;
+    if (
+      isNaN(templateIndex) ||
+      templateIndex < 0 ||
+      templateIndex >= templates.length
+    ) {
+      alert("无效的模板编号");
+      return;
+    }
+
+    const selectedTemplate = templates[templateIndex];
+
+    const templateResponse = await getTemplateById(selectedTemplate.id);
+    const templateData = templateResponse.data?.template;
+
+    if (templateData) {
+      templateFormat.value = templateData.content;
+      templateName.value = templateData.name;
+      isTemplateLoaded.value = true;
+      selectedFormat.value = "template";
+      formatConfirmed.value = true;
+      alert("模板加载成功！");
+    }
+  } catch (error) {
+    console.error("加载模板失败:", error);
+    alert("加载模板失败，请重试");
+  }
+};
+
+// 加载用户保存的内容
+const loadUserContent = async () => {
+  try {
+    const contentsResponse = await getUserContents();
+    const contents = contentsResponse.data?.contents || [];
+
+    if (contents.length === 0) {
+      alert("您还没有保存任何内容");
+      return;
+    }
+
+    // 创建内容选择对话框
+    let contentList = "请选择要加载的内容:\n\n";
+    contents.forEach((content: any, index: number) => {
+      contentList += `${index + 1}. ${content.title} - ${
+        content.description || "无描述"
+      } (${new Date(content.created_at).toLocaleDateString()})\n`;
+    });
+
+    const selection = prompt(contentList + "\n请输入内容编号:");
+    if (!selection) return;
+
+    const contentIndex = parseInt(selection) - 1;
+    if (
+      isNaN(contentIndex) ||
+      contentIndex < 0 ||
+      contentIndex >= contents.length
+    ) {
+      alert("无效的内容编号");
+      return;
+    }
+
+    const selectedContent = contents[contentIndex];
+
+    const contentResponse = await getContentById(selectedContent.id);
+    const contentData = contentResponse.data?.content;
+
+    if (contentData) {
+      // 恢复内容
+      documentParts.value = contentData.content.parts || [];
+
+      // 如果有自定义格式，也恢复它
+      if (contentData.content.customTypes) {
+        customTextTypes.value = contentData.content.customTypes;
+      }
+
+      // 恢复格式选择
+      selectedFormat.value = contentData.content.format || "custom";
+      formatConfirmed.value = true;
+
+      alert("内容加载成功！");
+    }
+  } catch (error) {
+    console.error("加载内容失败:", error);
+    alert("加载内容失败，请重试");
   }
 };
 
@@ -1754,6 +1904,25 @@ textarea:focus {
   box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
 }
 
+.save-custom-format-btn {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #007bff 0%, #0062cc 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 15px;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.save-custom-format-btn:hover {
+  background: linear-gradient(135deg, #0062cc 0%, #0056b3 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 123, 255, 0.4);
+}
+
 .add-type-btn:hover {
   background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
   transform: translateY(-2px);
@@ -1896,84 +2065,6 @@ textarea:focus {
   border-top: 1px solid #eef2f7;
 }
 
-.template-upload-section {
-  margin-top: 15px;
-  padding: 15px;
-  border: 1px solid #eef2f7;
-  border-radius: 8px;
-  background-color: #f8fafc;
-}
-
-.template-upload-input {
-  width: 100%;
-  padding: 8px;
-  border: 1px solid #e0e6ed;
-  border-radius: 6px;
-  margin-top: 8px;
-}
-
-.template-info {
-  margin-top: 10px;
-  padding: 10px;
-  background-color: #e8f4fd;
-  border-radius: 6px;
-  border-left: 4px solid #3498db;
-}
-
-.clear-template-btn {
-  margin-top: 8px;
-  padding: 6px 12px;
-  background-color: #e74c3c;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-}
-
-.clear-template-btn:hover {
-  background-color: #c0392b;
-}
-
-.template-content {
-  font-family: SimSun, serif;
-}
-
-.template-download {
-  margin-top: 10px;
-  padding: 12px;
-  background-color: #f0f8ff;
-  border-radius: 6px;
-  border-left: 4px solid #4a90e2;
-}
-
-.download-options {
-  display: flex;
-  align-items: center;
-  margin-top: 8px;
-}
-
-.download-link {
-  color: #4a90e2;
-  text-decoration: none;
-  font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-}
-
-.download-link:hover {
-  color: #2a69b8;
-  background-color: #e6f3ff;
-  text-decoration: underline;
-}
-
-.download-separator {
-  color: #999;
-  margin: 0 8px;
-  font-size: 12px;
-}
-
 /* 知网论文格式样式 */
 .thesis-title {
   text-align: center;
@@ -2101,7 +2192,8 @@ textarea:focus {
 }
 
 .input-panel {
-  width: 400px;
+  width: 100%;
+  max-width: 400px;
   display: flex;
   flex-direction: column;
   border-radius: 12px;
@@ -2109,6 +2201,7 @@ textarea:focus {
   background-color: white;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
   border: 1px solid #eef2f7;
+  box-sizing: border-box;
 }
 
 .input-panel h2 {
@@ -2123,6 +2216,8 @@ textarea:focus {
 
 .input-section {
   margin-bottom: 20px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .input-section label {
@@ -2142,6 +2237,8 @@ textarea:focus {
   background-color: white;
   color: #2c3e50;
   transition: all 0.3s ease;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .text-type-select:focus {
@@ -2162,6 +2259,8 @@ textarea:focus {
   color: #2c3e50;
   transition: all 0.3s ease;
   min-height: 120px;
+  box-sizing: border-box;
+  max-width: 100%;
 }
 
 .text-input:focus {
@@ -2175,6 +2274,12 @@ textarea:focus {
   flex-direction: column;
   gap: 12px;
   margin-top: auto;
+}
+
+.action-group {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .input-actions button {
@@ -2330,5 +2435,45 @@ textarea:focus {
 .delete-btn:hover {
   opacity: 1;
   transform: scale(1.05);
+}
+
+.save-template-btn {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: white;
+}
+
+.save-template-btn:hover {
+  background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+  box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
+}
+
+.save-content-btn {
+  background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+  color: white;
+}
+
+.save-content-btn:hover {
+  background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.load-template-btn {
+  background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+  color: #212529;
+}
+
+.load-template-btn:hover {
+  background: linear-gradient(135deg, #e0a800 0%, #d39e00 100%);
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
+}
+
+.load-content-btn {
+  background: linear-gradient(135deg, #6f42c1 0%, #6337a9 100%);
+  color: white;
+}
+
+.load-content-btn:hover {
+  background: linear-gradient(135deg, #6337a9 0%, #582fc0 100%);
+  box-shadow: 0 4px 12px rgba(111, 66, 193, 0.3);
 }
 </style>

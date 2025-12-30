@@ -36,6 +36,7 @@ app.use('/api/stats', require('./routes/stats'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/comments', require('./routes/comments'));
 app.use('/api/profile', require('./routes/profile'));
+app.use('/api/templates', require('./routes/templates'));
 
 // 错误处理中间件
 app.use((err, req, res, next) => {

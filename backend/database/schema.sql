@@ -94,6 +94,32 @@ CREATE TABLE IF NOT EXISTS remember_tokens (
   INDEX idx_token (token)
 );
 
+-- Create user_templates table for storing user saved templates
+CREATE TABLE IF NOT EXISTS user_templates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  content JSON NOT NULL,
+  type VARCHAR(50) DEFAULT 'format', -- 'format', 'excel', 'json', etc.
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_id (user_id),
+  INDEX idx_type (type)
+);
+
+-- Create user_contents table for storing user saved content
+CREATE TABLE IF NOT EXISTS user_contents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  content JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_id (user_id)
+);
+
 -- Insert sample data
 INSERT IGNORE INTO users (username, email, password, role, status) VALUES 
   ('admin', 'admin@example.com', '$2b$10$rOzJqQZ6vT1W9yHhNvHwEe7lIuB1pA6dG9fK5hR3sQ2uV4xYzW8eO', 'admin', 'active'), -- password: admin123
