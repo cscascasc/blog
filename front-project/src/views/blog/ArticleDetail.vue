@@ -2,11 +2,11 @@
   <transition name="article" appear>
     <div class="article-detail">
       <div class="container">
-        <el-backtop :target="articleDetailRef" :right="50" :bottom="50">
-          <div class="backtop-button">
+        <transition name="backtop-fade">
+          <div v-show="showBackTop" class="backtop-button" @click="scrollToTop">
             <el-icon><ArrowUp /></el-icon>
           </div>
-        </el-backtop>
+        </transition>
 
         <div class="article-header">
           <div class="return-button">
@@ -224,27 +224,6 @@ import {
   ElIcon,
   ElInput,
 } from "element-plus";
-import {
-  ArrowUp,
-  ArrowLeft,
-  Timer,
-  User,
-  StarFilled,
-  Star,
-  Share,
-  ArrowDown,
-  ChatDotRound,
-  Platform,
-  CopyDocument,
-  Link,
-  CirclePlus,
-  Remove,
-  ArrowRight,
-  View,
-  Delete,
-  CaretTop,
-  CaretBottom,
-} from "@element-plus/icons-vue";
 import { getArticleById } from "../../api/article";
 import {
   getCommentsByArticleId,
@@ -279,6 +258,7 @@ interface Comment {
 const route = useRoute();
 const router = useRouter();
 const articleDetailRef = ref<HTMLElement | null>(null);
+const showBackTop = ref(false); // 控制回到顶部按钮显示
 
 // 字体大小相关
 const fontSize = ref(16);
@@ -392,6 +372,38 @@ const handleShare = (command: string) => {
   }
 };
 
+// 监听滚动事件以控制回到顶部按钮显示
+const handleScroll = () => {
+  // 检查滚动位置，决定是否显示回到顶部按钮
+  showBackTop.value = window.pageYOffset > 300;
+};
+
+// 自定义平滑滚动到顶部
+const scrollToTop = () => {
+  const start = document.documentElement.scrollTop || document.body.scrollTop;
+  const startTime = performance.now();
+  const duration = 800; // 动画持续时间 800ms
+
+  const easeInOutQuad = (t: number) => {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  };
+
+  const animateScroll = (currentTime: number) => {
+    const elapsed = currentTime - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+    const ease = easeInOutQuad(progress);
+
+    const currentPosition = start * (1 - ease);
+    window.scrollTo(0, currentPosition);
+
+    if (progress < 1) {
+      requestAnimationFrame(animateScroll);
+    }
+  };
+
+  requestAnimationFrame(animateScroll);
+};
+
 // 页面加载时恢复收藏状态和字体大小
 onMounted(async () => {
   // 恢复收藏状态
@@ -409,11 +421,18 @@ onMounted(async () => {
   // 加载文章和评论
   await loadArticle();
   await loadComments();
+
+  // 添加滚动事件监听器
+  window.addEventListener("scroll", handleScroll);
+  // 初始化按钮显示状态
+  handleScroll();
 });
 
 // 页面卸载前保存字体大小
 onBeforeUnmount(() => {
   localStorage.setItem("articleFontSize", fontSize.value.toString());
+  // 移除滚动事件监听器
+  window.removeEventListener("scroll", handleScroll);
 });
 
 // 加载文章
@@ -927,11 +946,54 @@ const submitComment = async () => {
   font-size: 1.5rem;
   box-shadow: 0 3px 15px rgba(52, 152, 219, 0.4);
   transition: all 0.3s ease;
+  position: fixed;
+  right: 50px;
+  bottom: 50px;
+  z-index: 100;
+  cursor: pointer;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(120deg, #2c3e50, #3498db);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-radius: 50%;
+  }
 
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(52, 152, 219, 0.6);
+    transform: translateY(-5px) scale(1.1);
+    box-shadow: 0 8px 25px rgba(52, 152, 219, 0.7);
+
+    &::before {
+      opacity: 1;
+    }
   }
+
+  &:active {
+    transform: translateY(-3px) scale(0.95);
+  }
+}
+
+// 回到顶部按钮淡入淡出动画
+.backtop-fade-enter-active {
+  transition: all 0.4s ease;
+}
+
+.backtop-fade-leave-active {
+  transition: all 0.2s ease;
+}
+
+.backtop-fade-enter-from,
+.backtop-fade-leave-to {
+  opacity: 0;
+  transform: translateY(20px) scale(0.8);
+  filter: blur(2px);
 }
 
 @media (max-width: 768px) {

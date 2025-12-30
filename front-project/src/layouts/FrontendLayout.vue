@@ -284,8 +284,6 @@ onMounted(() => {
   display: flex;
 }
 
-
-
 .main-wrapper {
   flex: 1;
   margin-left: 250px;
@@ -619,7 +617,7 @@ onMounted(() => {
   .user-dropdown .el-dropdown-link {
     padding: 5px 10px;
     font-size: 0.9rem;
-    
+
     .user-avatar {
       width: 24px;
       height: 24px;
